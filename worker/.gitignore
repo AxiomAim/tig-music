@@ -1,0 +1,14 @@
+# Secrets — never commit
+.env
+serviceAccount.json
+*.json.key
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Scratch audio / model caches
+/tmp/
+*.wav
+*.mp3

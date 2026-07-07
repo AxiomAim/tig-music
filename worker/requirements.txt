@@ -1,0 +1,19 @@
+# Tig Music — audio worker deps.
+# Pinned loosely; see README for CUDA vs Apple/CPU install notes (PyTorch wheel differs).
+
+# Core ML / audio
+demucs>=4.0.1            # stem separation (htdemucs) — pulls in torch, torchaudio
+faster-whisper>=1.0.3   # lyric transcription (CTranslate2; CUDA or CPU int8)
+librosa>=0.10.2         # key + tempo (BPM) analysis
+soundfile>=0.12.1       # wav I/O
+numpy>=1.26,<2.3
+
+# Metadata
+mutagen>=1.47           # read ID3 tags (title/artist) from mp3/flac/etc.
+
+# Firebase (job queue + object storage)
+firebase-admin>=6.5.0
+
+# Config / HTTP (optional LLM title suggestion via an OpenAI-compatible endpoint, e.g. Ollama)
+python-dotenv>=1.0.1
+requests>=2.32
