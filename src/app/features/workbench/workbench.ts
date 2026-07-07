@@ -1,0 +1,196 @@
+import { Component, computed, effect, inject, input } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { SongStore } from '../../core/services/song-store.service';
+import { SongContextService } from '../../core/services/song-context.service';
+import { KEY_NAMES } from '../../core/services/theory.service';
+import { TransposeService } from '../../core/services/transpose.service';
+import {
+  SECTION_TYPES,
+  Section,
+  SONG_STATUSES,
+  SongStatus,
+  SectionType,
+} from '../../core/models/song.model';
+import { SectionEditor } from '../../shared/components/section-editor/section-editor';
+import { ChordLane } from '../../shared/components/chord-lane/chord-lane';
+
+@Component({
+  selector: 'app-workbench',
+  imports: [RouterLink, SectionEditor, ChordLane],
+  template: `
+    @let song = current();
+    @if (!song) {
+      <div class="mx-auto max-w-3xl px-4 py-20 text-center">
+        <p class="text-slate-500 dark:text-slate-400">Song not found.</p>
+        <a routerLink="/songs" class="btn-ghost mt-4">← Back to your songs</a>
+      </div>
+    } @else {
+      <!-- Context bar (the spine) -->
+      <div
+        class="sticky top-16 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90"
+      >
+        <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <a routerLink="/songs" class="text-sm text-slate-500 hover:text-brand-600">← Songs</a>
+          <input
+            class="input min-w-40 flex-1 py-1 font-heading text-lg font-bold"
+            [value]="song.title"
+            (change)="setTitle(song.id, $any($event.target).value)"
+          />
+
+          <label class="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+            Key
+            <select
+              class="input py-1"
+              [value]="song.key"
+              (change)="changeKey(+$any($event.target).value)"
+            >
+              @for (k of keyNames; track $index) {
+                <option [value]="$index">{{ k }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+            Tempo
+            <input
+              class="input w-20 py-1"
+              type="number"
+              [value]="song.tempo"
+              (change)="setTempo(song.id, +$any($event.target).value)"
+            />
+          </label>
+
+          <label class="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+            <input
+              type="checkbox"
+              [checked]="ctx.showNashville()"
+              (change)="ctx.toggleNashville()"
+            />
+            Nashville
+          </label>
+
+          <select
+            class="input py-1 text-sm capitalize"
+            [value]="song.status"
+            (change)="setStatus(song.id, $any($event.target).value)"
+          >
+            @for (s of statuses; track s) {
+              <option [value]="s">{{ s }}</option>
+            }
+          </select>
+
+          <a [routerLink]="['/songs', song.id, 'chart']" class="btn-ghost py-1.5 text-sm"
+            >Chart →</a
+          >
+        </div>
+      </div>
+
+      <div class="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_20rem] lg:px-8">
+        <!-- Sections -->
+        <div class="space-y-6">
+          @for (sec of song.sections; track sec.id) {
+            <div>
+              <app-section-editor
+                [section]="sec"
+                (change)="onSection(song.id, $event)"
+                (remove)="store.removeSection(song.id, sec.id)"
+                (moveUp)="store.moveSection(song.id, sec.id, -1)"
+                (moveDown)="store.moveSection(song.id, sec.id, 1)"
+                (duplicate)="store.duplicateSection(song.id, sec.id)"
+              />
+              <div class="mt-2 px-1">
+                <app-chord-lane
+                  [section]="sec"
+                  [songKey]="song.key"
+                  [tempo]="song.tempo"
+                  [showNashville]="ctx.showNashville()"
+                  (change)="onSection(song.id, $event)"
+                />
+              </div>
+            </div>
+          }
+
+          <!-- Add section -->
+          <div
+            class="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-slate-300 p-3 dark:border-slate-700"
+          >
+            <span class="text-sm text-slate-500">Add a section:</span>
+            @for (t of addable; track t) {
+              <button type="button" class="chip capitalize" (click)="store.addSection(song.id, t)">
+                + {{ t }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- Hermes margin (placeholder for M4) -->
+        <aside class="card h-fit lg:sticky lg:top-32">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">✨</span>
+            <h2 class="font-heading font-semibold text-slate-900 dark:text-white">Hermes</h2>
+          </div>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Your AI co-writer. Rhymes, scripture ties, chord colors, structure notes, and titles —
+            as editable proposals you accept, edit, or discard.
+          </p>
+          <p
+            class="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+          >
+            Arriving in M4 — propose-never-act, grounded in your song. See
+            docs/05-hermes-agent-setup.md.
+          </p>
+        </aside>
+      </div>
+    }
+  `,
+})
+export class Workbench {
+  readonly id = input.required<string>();
+  readonly store = inject(SongStore);
+  readonly ctx = inject(SongContextService);
+  private readonly transpose = inject(TransposeService);
+
+  readonly keyNames = KEY_NAMES;
+  readonly statuses = SONG_STATUSES;
+  readonly addable: SectionType[] = SECTION_TYPES;
+  readonly current = computed(() => this.store.get(this.id()));
+
+  constructor() {
+    // Mirror the open song's key/tempo into the shared context — the live spine.
+    effect(() => {
+      const song = this.current();
+      if (song) this.ctx.load(song.id, song.key, song.tempo, song.timeSignature);
+    });
+  }
+
+  onSection(songId: string, section: Section): void {
+    this.store.updateSection(songId, section);
+  }
+
+  setTitle(songId: string, title: string): void {
+    this.store.updateMeta(songId, { title });
+  }
+
+  setTempo(songId: string, tempo: number): void {
+    this.store.updateMeta(songId, { tempo });
+  }
+
+  setStatus(songId: string, status: SongStatus): void {
+    this.store.updateMeta(songId, { status });
+  }
+
+  /** Change key: re-spell every chord to the new key so the song stays musically the same. */
+  changeKey(newKey: number): void {
+    const song = this.current();
+    if (!song) return;
+    const from = song.key;
+    const sections = song.sections.map((sec) => ({
+      ...sec,
+      progression: sec.progression.map((ch) => ({
+        ...ch,
+        symbol: this.transpose.transposeChord(ch.symbol, from, newKey),
+      })),
+    }));
+    this.store.updateMeta(song.id, { key: newKey, sections });
+  }
+}

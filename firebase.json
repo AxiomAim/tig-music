@@ -1,0 +1,8 @@
+{
+  "hosting": {
+    "target": "music",
+    "public": "dist/tig-music/browser",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+  }
+}

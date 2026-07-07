@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "tig-powell"
+  },
+  "targets": {
+    "tig-powell": {
+      "hosting": {
+        "music": [
+          "tig-music"
+        ]
+      }
+    }
+  }
+}
