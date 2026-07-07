@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { SongStore } from '../../core/services/song-store.service';
 import { TheoryService } from '../../core/services/theory.service';
+import { ChartService } from '../../core/services/chart.service';
 import { SONG_STATUSES, SongStatus } from '../../core/models/song.model';
 
 @Component({
@@ -18,11 +19,43 @@ import { SONG_STATUSES, SongStatus } from '../../core/models/song.model';
             {{ filtered().length }} of {{ store.songs().length }} songs
           </p>
         </div>
-        <button type="button" class="btn-primary" (click)="newSong()">+ New song</button>
+        <div class="flex items-center gap-2">
+          <button type="button" class="btn-ghost" (click)="fileInput.click()">
+            Import ChordPro
+          </button>
+          <input
+            #fileInput
+            type="file"
+            accept=".cho,.crd,.chopro,.chordpro,.txt"
+            class="hidden"
+            (change)="importChordPro($event)"
+          />
+          <button type="button" class="btn-primary" (click)="newSong()">+ New song</button>
+        </div>
+      </div>
+
+      <!-- View toggle -->
+      <div class="mt-6 flex items-center gap-2">
+        <button
+          type="button"
+          class="chip"
+          [class.chip-active]="view() === 'list'"
+          (click)="view.set('list')"
+        >
+          List
+        </button>
+        <button
+          type="button"
+          class="chip"
+          [class.chip-active]="view() === 'board'"
+          (click)="view.set('board')"
+        >
+          Board
+        </button>
       </div>
 
       <!-- Filters -->
-      <div class="mt-6 flex flex-wrap items-center gap-2">
+      <div class="mt-4 flex flex-wrap items-center gap-2" [class.hidden]="view() === 'board'">
         <input
           class="input w-56"
           type="search"
@@ -51,7 +84,10 @@ import { SONG_STATUSES, SongStatus } from '../../core/models/song.model';
       </div>
 
       <!-- List -->
-      <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        [class.hidden]="view() === 'board'"
+      >
         @for (song of filtered(); track song.id) {
           <a
             [routerLink]="['/songs', song.id]"
@@ -85,17 +121,68 @@ import { SONG_STATUSES, SongStatus } from '../../core/models/song.model';
           <p class="text-slate-500 dark:text-slate-400">No songs match. Try a different filter.</p>
         }
       </div>
+
+      <!-- Board (US-6.2) -->
+      @if (view() === 'board') {
+        <div class="mt-8 grid gap-4 md:grid-cols-3 xl:grid-cols-5">
+          @for (col of board(); track col.status) {
+            <div class="rounded-xl bg-slate-50 p-3 dark:bg-slate-900/40">
+              <h3 class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 capitalize">
+                {{ col.status }} · {{ col.songs.length }}
+              </h3>
+              <div class="space-y-2">
+                @for (song of col.songs; track song.id) {
+                  <div class="card p-3">
+                    <div class="flex items-start justify-between gap-2">
+                      <a
+                        [routerLink]="['/songs', song.id]"
+                        class="font-semibold text-slate-900 hover:text-brand-600 dark:text-white"
+                        >{{ song.title }}</a
+                      >
+                    </div>
+                    <p class="mt-1 text-xs text-slate-400">
+                      {{ theory.keyName(song.key) }} · {{ song.tempo }} bpm
+                    </p>
+                    <div class="mt-2 flex justify-between text-slate-400">
+                      <button
+                        type="button"
+                        class="text-xs hover:text-brand-600 disabled:opacity-30"
+                        [disabled]="col.index === 0"
+                        (click)="moveStatus(song, -1)"
+                      >
+                        ‹ back
+                      </button>
+                      <button
+                        type="button"
+                        class="text-xs hover:text-brand-600 disabled:opacity-30"
+                        [disabled]="col.index === statuses.length - 1"
+                        (click)="moveStatus(song, 1)"
+                      >
+                        next ›
+                      </button>
+                    </div>
+                  </div>
+                } @empty {
+                  <p class="text-xs text-slate-300 dark:text-slate-600">—</p>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
     </div>
   `,
 })
 export class Catalog {
   readonly store = inject(SongStore);
   readonly theory = inject(TheoryService);
+  private readonly chart = inject(ChartService);
   private readonly router = inject(Router);
 
   readonly statuses = SONG_STATUSES;
   readonly query = signal('');
   readonly status = signal<SongStatus | 'all'>('all');
+  readonly view = signal<'list' | 'board'>('list');
 
   readonly filtered = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -107,8 +194,43 @@ export class Catalog {
     });
   });
 
+  /** Songs grouped into one column per status, for the board view. */
+  readonly board = computed(() =>
+    this.statuses.map((status, index) => ({
+      status,
+      index,
+      songs: this.store.songs().filter((s) => s.status === status),
+    })),
+  );
+
+  /** Advance/retreat a song along the pipeline (board arrows). */
+  moveStatus(song: { id: string; status: SongStatus }, dir: -1 | 1): void {
+    const i = this.statuses.indexOf(song.status);
+    const next = this.statuses[i + dir];
+    if (next) this.store.updateMeta(song.id, { status: next });
+  }
+
   async newSong(): Promise<void> {
     const song = await this.store.create();
+    await this.router.navigate(['/songs', song.id]);
+  }
+
+  /** Import a ChordPro file as a new song, then open it (US-4.6). */
+  async importChordPro(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    input.value = '';
+    const parsed = this.chart.fromChordPro(text);
+    const song = await this.store.create(parsed.title ?? file.name.replace(/\.[^.]+$/, ''));
+    this.store.updateMeta(song.id, {
+      title: parsed.title ?? song.title,
+      key: parsed.key ?? song.key,
+      tempo: parsed.tempo ?? song.tempo,
+      timeSignature: parsed.timeSignature ?? song.timeSignature,
+      sections: parsed.sections.length ? parsed.sections : song.sections,
+    });
     await this.router.navigate(['/songs', song.id]);
   }
 }

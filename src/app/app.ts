@@ -129,7 +129,9 @@ export class App {
   ];
 
   /** Hide the Songs link when signed out (it's auth-guarded). */
-  readonly visibleLinks = computed(() => this.links.filter((l) => !l.authOnly || this.auth.isSignedIn()));
+  readonly visibleLinks = computed(() =>
+    this.links.filter((l) => !l.authOnly || this.auth.isSignedIn()),
+  );
 
   constructor() {
     this.theme.init();
