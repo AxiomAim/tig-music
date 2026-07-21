@@ -17,8 +17,12 @@ export class AudioService {
   private ctx: AudioContext | null = null;
   private stopAt = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private metroTimer: ReturnType<typeof setInterval> | null = null;
+  private metroBeat = 0;
+  private metroNext = 0;
 
   readonly playing = signal(false);
+  readonly metronomeOn = signal(false);
 
   /** Play a sequence of chords at the given tempo. Restarts if already playing. */
   playProgression(chords: PlayChord[], tempo: number): void {
@@ -45,6 +49,49 @@ export class AudioService {
       this.timer = null;
     }
     this.playing.set(false);
+  }
+
+  /** Toggle a click track at the given tempo (accented downbeat every `beatsPerBar`). */
+  toggleMetronome(tempo: number, beatsPerBar = 4): void {
+    if (this.metronomeOn()) {
+      this.stopMetronome();
+      return;
+    }
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const interval = 60 / Math.max(20, tempo);
+    this.metroBeat = 0;
+    this.metroNext = ctx.currentTime + 0.1;
+    // Look-ahead scheduler: enqueue any clicks due in the next 200 ms every 25 ms.
+    this.metroTimer = setInterval(() => {
+      while (this.metroNext < ctx.currentTime + 0.2) {
+        this.click(ctx, this.metroNext, this.metroBeat % beatsPerBar === 0);
+        this.metroNext += interval;
+        this.metroBeat++;
+      }
+    }, 25);
+    this.metronomeOn.set(true);
+  }
+
+  stopMetronome(): void {
+    if (this.metroTimer) {
+      clearInterval(this.metroTimer);
+      this.metroTimer = null;
+    }
+    this.metroBeat = 0;
+    this.metronomeOn.set(false);
+  }
+
+  private click(ctx: AudioContext, time: number, accent: boolean): void {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = accent ? 1600 : 1000;
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(accent ? 0.3 : 0.18, time + 0.001);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(time);
+    osc.stop(time + 0.06);
   }
 
   private scheduleChord(ctx: AudioContext, symbol: string, start: number, dur: number): void {

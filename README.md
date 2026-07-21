@@ -14,8 +14,28 @@ Built with **Angular 21.2**, **Angular Material + Kendo UI**, **Tailwind CSS v3.
 Audio API, **Firebase** (Auth, Firestore, Storage, Hosting/App Hosting), **Capacitor 8.3** for
 mobile, and **Firebase AI Logic (Gemini)** for Hermes.
 
-> **Status:** planning complete, app not yet built. The source in this repo is scaffolding
-> copied from Tig Banjo — see [`docs/`](docs/) for the plan that replaces it.
+> **Status:** the studio is built (epics E0–E8). Signed-in writers can create songs; write
+> section-based lyrics with rhyme, meter, and WEB scripture search; sketch in-key harmony with
+> Nashville numbers and playback; generate/transpose charts and export ChordPro / MusicXML /
+> PDF; record demo takes; manage a catalog + release/provenance; and co-write with **Hermes**
+> (propose-never-act). Songs persist to Firestore and versions/takes are per-writer.
+>
+> **Remaining (roadmap / needs live infra):** wire Hermes's Gemini backend behind the local
+> proposer; build the Capacitor shells (`npx cap add`); optional SSR for public routes; and the
+> post-v1 roadmap (melody sketch, co-write, Spotify analytics). See [`docs/`](docs/).
+
+## What's built
+
+| Route | What it does |
+| --- | --- |
+| `/` · `/about` | Public landing + about (the seven pillars). |
+| `/songs` | Catalog — search/filter, **board view** by status, **Import ChordPro**, New song. |
+| `/songs/:id` | **Song Workbench** — section lyric editor (rhyme/meter/scripture), per-section chord lane (in-key + borrowed colors, playback), demo takes + metronome, version history, and the Hermes co-writer. |
+| `/songs/:id/chart` | Chord / Nashville chart, transpose to any key, export **ChordPro · MusicXML · PDF**. |
+| `/songs/:id/release` | Writers & splits, release metadata, Spotify link, and the human-authorship **provenance log**. |
+
+Unit tests cover the pure engines (transpose, chart round-trip, scripture grounding, Hermes
+propose-never-act, rhyme, syllables): `npm test`.
 
 ## Plans & documents
 
@@ -55,4 +75,3 @@ domains. A `/music` describe-and-link page on [tig-powell](../tig-powell) links 
 Tig Music writes the shared `users/{uid}` tree with `appId: 'music'` (progress, sessions,
 saved) so the hub dashboard reflects it — see the
 [Suite Data Contract](../tig-powell/docs/00-architecture/03-suite-data-contract.md).
-# tig-music

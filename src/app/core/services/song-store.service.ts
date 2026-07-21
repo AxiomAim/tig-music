@@ -21,7 +21,7 @@ import {
 } from '@angular/fire/firestore';
 import { type Observable, of, switchMap } from 'rxjs';
 import { AuthService } from './auth.service';
-import { Section, Song } from '../models/song.model';
+import { ProvenanceEntry, Section, Song, VersionSnapshot } from '../models/song.model';
 
 @Injectable({ providedIn: 'root' })
 export class SongStore {
@@ -146,15 +146,53 @@ export class SongStore {
     if (uid) await deleteDoc(doc(this.db, 'users', uid, 'songs', songId));
   }
 
+  // --- version snapshots (US-3.3) ------------------------------------------
+
+  /** Live list of a song's named snapshots, newest first. */
+  watchVersions(songId: string): Observable<VersionSnapshot[]> {
+    const uid = this.uid();
+    if (!uid) return of([]);
+    return collectionData(query(this.versionsCol(uid, songId), orderBy('createdAt', 'desc')), {
+      idField: 'id',
+    }) as Observable<VersionSnapshot[]>;
+  }
+
+  /** Save the current state of a song as a restorable named snapshot. */
+  async snapshot(songId: string, label: string): Promise<void> {
+    const uid = this.uid();
+    const song = this.get(songId);
+    if (!uid || !song) return;
+    const ref = doc(this.versionsCol(uid, songId));
+    await setDoc(ref, { label: label.trim() || 'Untitled version', createdAt: Date.now(), song });
+  }
+
+  /** Restore a snapshot's content over the live song (its own next autosave persists it). */
+  restore(songId: string, snapshot: VersionSnapshot): void {
+    this.persist({ ...snapshot.song, id: songId, updatedAt: Date.now() });
+  }
+
+  /** Append a human-authorship / provenance entry (called when a Hermes suggestion is
+   *  accepted, or to record human edits). See docs/05-hermes-agent-setup.md §6. */
+  logProvenance(songId: string, entry: ProvenanceEntry): void {
+    this.mutate(songId, (song) => ({ ...song, provenance: [...song.provenance, entry] }));
+  }
+
   // --- persistence ---------------------------------------------------------
   private col(uid: string) {
     return collection(this.db, 'users', uid, 'songs');
   }
 
+  private versionsCol(uid: string, songId: string) {
+    return collection(this.db, 'users', uid, 'songs', songId, 'versions');
+  }
+
   private persist(song: Song): void {
     const uid = this.uid();
     if (!uid) return;
-    void setDoc(doc(this.db, 'users', uid, 'songs', song.id), this.toDoc({ ...song, updatedAt: Date.now() }));
+    void setDoc(
+      doc(this.db, 'users', uid, 'songs', song.id),
+      this.toDoc({ ...song, updatedAt: Date.now() }),
+    );
   }
 
   private mutate(songId: string, fn: (song: Song) => Song): void {

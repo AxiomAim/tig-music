@@ -4,5 +4,10 @@
     "public": "dist/tig-music/browser",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [{ "source": "**", "destination": "/index.html" }]
+  },
+  "functions": {
+    "source": "functions",
+    "codebase": "tig-music",
+    "runtime": "nodejs20"
   }
 }

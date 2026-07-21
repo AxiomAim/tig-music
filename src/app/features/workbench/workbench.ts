@@ -1,4 +1,6 @@
-import { Component, computed, effect, inject, input } from '@angular/core';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { switchMap } from 'rxjs';
 import { RouterLink } from '@angular/router';
 import { SongStore } from '../../core/services/song-store.service';
 import { SongContextService } from '../../core/services/song-context.service';
@@ -10,13 +12,16 @@ import {
   SONG_STATUSES,
   SongStatus,
   SectionType,
+  VersionSnapshot,
 } from '../../core/models/song.model';
 import { SectionEditor } from '../../shared/components/section-editor/section-editor';
 import { ChordLane } from '../../shared/components/chord-lane/chord-lane';
+import { TakesStrip } from '../../shared/components/takes-strip/takes-strip';
+import { HermesPanel } from '../../shared/components/hermes-panel/hermes-panel';
 
 @Component({
   selector: 'app-workbench',
-  imports: [RouterLink, SectionEditor, ChordLane],
+  imports: [RouterLink, SectionEditor, ChordLane, TakesStrip, HermesPanel],
   template: `
     @let song = current();
     @if (!song) {
@@ -82,6 +87,9 @@ import { ChordLane } from '../../shared/components/chord-lane/chord-lane';
           <a [routerLink]="['/songs', song.id, 'chart']" class="btn-ghost py-1.5 text-sm"
             >Chart →</a
           >
+          <a [routerLink]="['/songs', song.id, 'release']" class="btn-ghost py-1.5 text-sm"
+            >Release →</a
+          >
         </div>
       </div>
 
@@ -123,23 +131,52 @@ import { ChordLane } from '../../shared/components/chord-lane/chord-lane';
           </div>
         </div>
 
-        <!-- Hermes margin (placeholder for M4) -->
-        <aside class="card h-fit lg:sticky lg:top-32">
-          <div class="flex items-center gap-2">
-            <span class="text-xl">✨</span>
-            <h2 class="font-heading font-semibold text-slate-900 dark:text-white">Hermes</h2>
-          </div>
-          <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
-            Your AI co-writer. Rhymes, scripture ties, chord colors, structure notes, and titles —
-            as editable proposals you accept, edit, or discard.
-          </p>
-          <p
-            class="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-          >
-            Arriving in M4 — propose-never-act, grounded in your song. See
-            docs/05-hermes-agent-setup.md.
-          </p>
-        </aside>
+        <div class="space-y-6 lg:sticky lg:top-32 lg:self-start">
+          <!-- Capture & Demo (E5) -->
+          <app-takes-strip
+            [songId]="song.id"
+            [tempo]="song.tempo"
+            [songKey]="song.key"
+            [beatsPerBar]="ctx.beatsPerBar()"
+          />
+
+          <!-- Version history (US-3.3) -->
+          <aside class="card">
+            <h2 class="font-heading font-semibold text-slate-900 dark:text-white">Versions</h2>
+            <div class="mt-2 flex gap-2">
+              <input
+                class="input flex-1 py-1 text-sm"
+                placeholder="Name this version…"
+                [value]="versionLabel()"
+                (input)="versionLabel.set($any($event.target).value)"
+              />
+              <button type="button" class="btn-ghost py-1 text-sm" (click)="saveVersion(song.id)">
+                Save
+              </button>
+            </div>
+            <ul class="mt-3 space-y-1.5">
+              @for (v of versions(); track v.id) {
+                <li class="flex items-center justify-between gap-2 text-sm">
+                  <span class="truncate text-slate-600 dark:text-slate-300">{{ v.label }}</span>
+                  <button
+                    type="button"
+                    class="text-xs text-brand-600 hover:underline"
+                    (click)="store.restore(song.id, v)"
+                  >
+                    Restore
+                  </button>
+                </li>
+              } @empty {
+                <li class="text-xs text-slate-400">
+                  Save a version before a big change; restore it anytime.
+                </li>
+              }
+            </ul>
+          </aside>
+
+          <!-- Hermes — the AI co-writer (E7) -->
+          <app-hermes-panel [song]="song" />
+        </div>
       </div>
     }
   `,
@@ -155,12 +192,23 @@ export class Workbench {
   readonly addable: SectionType[] = SECTION_TYPES;
   readonly current = computed(() => this.store.get(this.id()));
 
+  readonly versionLabel = signal('');
+  readonly versions = toSignal(
+    toObservable(this.id).pipe(switchMap((id) => this.store.watchVersions(id))),
+    { initialValue: [] as VersionSnapshot[] },
+  );
+
   constructor() {
     // Mirror the open song's key/tempo into the shared context — the live spine.
     effect(() => {
       const song = this.current();
       if (song) this.ctx.load(song.id, song.key, song.tempo, song.timeSignature);
     });
+  }
+
+  async saveVersion(songId: string): Promise<void> {
+    await this.store.snapshot(songId, this.versionLabel());
+    this.versionLabel.set('');
   }
 
   onSection(songId: string, section: Section): void {

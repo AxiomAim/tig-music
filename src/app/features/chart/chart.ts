@@ -2,7 +2,9 @@ import { Component, computed, effect, inject, input, signal } from '@angular/cor
 import { RouterLink } from '@angular/router';
 import { SongStore } from '../../core/services/song-store.service';
 import { TransposeService } from '../../core/services/transpose.service';
+import { ChartService } from '../../core/services/chart.service';
 import { KEY_NAMES } from '../../core/services/theory.service';
+import { Song } from '../../core/models/song.model';
 
 type ChartMode = 'chords' | 'nashville';
 
@@ -18,7 +20,7 @@ type ChartMode = 'chords' | 'nashville';
       </div>
     } @else {
       <div class="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3 print:hidden">
           <a [routerLink]="['/songs', song.id]" class="text-sm text-slate-500 hover:text-brand-600"
             >← Workbench</a
           >
@@ -26,7 +28,7 @@ type ChartMode = 'chords' | 'nashville';
             {{ song.title }}
           </h1>
 
-          <div class="ml-auto flex items-center gap-2">
+          <div class="ml-auto flex flex-wrap items-center gap-2">
             <button
               type="button"
               class="chip"
@@ -60,8 +62,25 @@ type ChartMode = 'chords' | 'nashville';
           </div>
         </div>
 
+        <!-- Export toolbar -->
+        <div class="mt-4 flex flex-wrap gap-2 print:hidden">
+          <button type="button" class="btn-ghost py-1.5 text-sm" (click)="exportChordPro(song)">
+            Export ChordPro
+          </button>
+          <button type="button" class="btn-ghost py-1.5 text-sm" (click)="exportMusicXml(song)">
+            Export MusicXML
+          </button>
+          <button type="button" class="btn-ghost py-1.5 text-sm" (click)="print()">
+            Print / PDF
+          </button>
+        </div>
+
         <!-- Chart -->
-        <div class="card mt-6 font-mono text-sm leading-relaxed">
+        <div
+          id="chart-print"
+          class="card mt-6 font-mono text-sm leading-relaxed print:border-0 print:shadow-none"
+        >
+          <h2 class="mb-4 hidden font-sans text-xl font-bold print:block">{{ song.title }}</h2>
           @for (sec of song.sections; track sec.id) {
             <div class="mb-6 last:mb-0">
               <div
@@ -82,19 +101,24 @@ type ChartMode = 'chords' | 'nashville';
             </div>
           }
         </div>
-
-        <p class="mt-4 text-xs text-slate-400">
-          ChordPro / PDF / MusicXML export arrives with the Chart pillar (M2) — see
-          docs/01-features-and-specifications.md.
-        </p>
       </div>
     }
   `,
+  styles: [
+    `
+      @media print {
+        :host {
+          display: block;
+        }
+      }
+    `,
+  ],
 })
 export class ChartView {
   readonly id = input.required<string>();
   private readonly store = inject(SongStore);
   private readonly transpose = inject(TransposeService);
+  private readonly chart = inject(ChartService);
 
   readonly keyNames = KEY_NAMES;
   readonly mode = signal<ChartMode>('chords');
@@ -102,7 +126,6 @@ export class ChartView {
   readonly current = computed(() => this.store.get(this.id()));
 
   constructor() {
-    // Default the target key to the song's own key once the input resolves.
     effect(() => {
       const song = this.current();
       if (song && this.toKey() === null) this.toKey.set(song.key);
@@ -113,5 +136,45 @@ export class ChartView {
     return this.mode() === 'nashville'
       ? this.transpose.chordToNashville(symbol, songKey)
       : this.transpose.transposeChord(symbol, songKey, this.toKey() ?? songKey);
+  }
+
+  exportChordPro(song: Song): void {
+    this.download(
+      `${this.slug(song.title)}.cho`,
+      this.chart.toChordPro(song, this.toKey() ?? song.key),
+      'text/plain',
+    );
+  }
+
+  exportMusicXml(song: Song): void {
+    this.download(
+      `${this.slug(song.title)}.musicxml`,
+      this.chart.toMusicXML(song, this.toKey() ?? song.key),
+      'application/vnd.recordare.musicxml+xml',
+    );
+  }
+
+  print(): void {
+    if (typeof window !== 'undefined') window.print();
+  }
+
+  private download(filename: string, content: string, type: string): void {
+    if (typeof document === 'undefined') return;
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private slug(title: string): string {
+    return (
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'song'
+    );
   }
 }

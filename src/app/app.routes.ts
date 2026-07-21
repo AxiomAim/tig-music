@@ -26,6 +26,12 @@ export const routes: Routes = [
     title: 'Chart — Tig Music',
   },
   {
+    path: 'songs/:id/release',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/release/release').then((m) => m.Release),
+    title: 'Release — Tig Music',
+  },
+  {
     path: 'about',
     loadComponent: () => import('./features/about/about').then((m) => m.About),
     title: 'About — Tig Music',
