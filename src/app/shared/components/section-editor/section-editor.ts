@@ -1,5 +1,6 @@
 import { Component, DestroyRef, inject, input, linkedSignal, output, signal } from '@angular/core';
-import { LyricLine, SECTION_TYPES, Section, SectionType } from '../../../core/models/song.model';
+import { SECTION_TYPES, Section, SectionType } from '../../../core/models/song.model';
+import { isChordLine, parseLyricsBlock, serializeLyricsBlock } from '../../../core/util/chord-text';
 import { RhymeService, RhymeResults } from '../../../core/services/rhyme.service';
 import { ScriptureService } from '../../../core/services/scripture.service';
 import { CommandBarService } from '../../../core/services/command-bar.service';
@@ -63,13 +64,18 @@ import { syllablesInLine } from '../../../core/util/syllables';
         (change)="commitLyrics()"
       ></textarea>
 
-      <!-- Per-line syllable readout -->
+      <!-- Per-line syllable readout (chord lines show as ♪, not counted in the meter) -->
       @if (lines().length) {
         <div class="mt-1 space-y-0.5 text-xs text-slate-400">
           @for (l of lines(); track $index) {
             <div class="flex justify-between gap-2">
-              <span class="truncate">{{ l.text || '·' }}</span>
-              <span [class.text-amber-500]="l.off">{{ l.syll }}</span>
+              <span
+                class="truncate"
+                [class.font-medium]="l.chord"
+                [class.text-brand-500]="l.chord"
+                >{{ l.text || '·' }}</span
+              >
+              <span [class.text-amber-500]="l.off">{{ l.chord ? '♪' : l.syll }}</span>
             </div>
           }
         </div>
@@ -202,7 +208,9 @@ export class SectionEditor {
   readonly lyricText = linkedSignal<Section, string>({
     source: this.section,
     computation: (section, previous) => {
-      const stored = section.lines.map((l) => l.text).join('\n');
+      // Serialize anchors back to chart style (chord line above lyric), so what the writer
+      // typed is what they keep editing.
+      const stored = serializeLyricsBlock(section.lines);
       if (previous !== undefined && stored === this.lastCommitted) return previous.value;
       this.lastCommitted = stored;
       return stored;
@@ -224,16 +232,19 @@ export class SectionEditor {
     this.autosaveTimer = setTimeout(() => this.commitLyrics(), 1500);
   }
 
-  /** Per-line text + syllable count, flagging lines that break the modal meter. */
+  /** Per-line text + syllable count, flagging lines that break the modal meter.
+   *  Chord lines ("C#m   A") are marked and skipped from the meter — they aren't sung. */
   readonly lines = () => {
     const raw = this.lyricText().split('\n');
-    const counts = raw.map(syllablesInLine);
+    const chord = raw.map(isChordLine);
+    const counts = raw.map((t, i) => (chord[i] ? 0 : syllablesInLine(t)));
     const nonzero = counts.filter((c) => c > 0);
     const modal = this.mode(nonzero);
     return raw.map((text, i) => ({
       text,
+      chord: chord[i],
       syll: counts[i],
-      off: counts[i] > 0 && modal > 0 && Math.abs(counts[i] - modal) > 2,
+      off: !chord[i] && counts[i] > 0 && modal > 0 && Math.abs(counts[i] - modal) > 2,
     }));
   };
 
@@ -255,10 +266,12 @@ export class SectionEditor {
       clearTimeout(this.autosaveTimer);
       this.autosaveTimer = null;
     }
-    const text = this.lyricText();
-    if (text === this.lastCommitted) return; // nothing new to save
-    this.lastCommitted = text;
-    const lines: LyricLine[] = text.split('\n').map((t) => ({ text: t, chordAnchors: [] }));
+    // Chord lines ("C#m   A") and inline [Chord] brackets become real ChordAnchors on the
+    // lyric below — the Chart view and ChordPro/MusicXML exports all read them.
+    const lines = parseLyricsBlock(this.lyricText());
+    const normalized = serializeLyricsBlock(lines);
+    if (normalized === this.lastCommitted) return; // nothing new to save
+    this.lastCommitted = normalized;
     this.change.emit({ ...this.section(), lines });
   }
 
