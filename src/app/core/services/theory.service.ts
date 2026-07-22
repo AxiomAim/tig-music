@@ -2,6 +2,11 @@ import { Injectable } from '@angular/core';
 
 export const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
+/** Sharp / flat spellings of the 12 pitch classes, chosen per key so chord roots read the way a
+ *  musician writes them (E major → G#m, not Abm; F major → Bb, not A#). */
+const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
 /** Display names for the 12 keys (mixing sharps/flats the way musicians write them). */
 export const KEY_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
@@ -45,6 +50,19 @@ export class TheoryService {
     return KEY_NAMES[((index % 12) + 12) % 12];
   }
 
+  /** Flat keys (and C / F) spell chromatic roots with flats; sharp keys with sharps — so the
+   *  chords of a key read correctly (E: G#m/C#m/D#°; F: Bb; Db: all flats). */
+  private keyUsesFlats(keyIndex: number): boolean {
+    const name = KEY_NAMES[((keyIndex % 12) + 12) % 12];
+    return name.endsWith('b') || name === 'C' || name === 'F';
+  }
+
+  /** Spell a pitch class using the accidental convention of the given key. */
+  noteInKey(pitchClass: number, keyIndex: number): string {
+    const names = this.keyUsesFlats(keyIndex) ? FLAT_NAMES : SHARP_NAMES;
+    return names[((pitchClass % 12) + 12) % 12];
+  }
+
   /** The seven diatonic chords of a major key, with Nashville numbers. */
   diatonicChords(keyIndex: number): DiatonicChord[] {
     const romanBase = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'];
@@ -54,7 +72,7 @@ export class TheoryService {
       return {
         numeral: NASHVILLE[i] + (quality === 'dim' ? '°' : quality === 'm' ? 'm' : ''),
         roman: romanBase[i],
-        name: this.keyName(rootIndex) + (quality === 'dim' ? '°' : quality),
+        name: this.noteInKey(rootIndex, keyIndex) + (quality === 'dim' ? '°' : quality),
         rootIndex,
         quality,
       };
@@ -92,7 +110,7 @@ export class TheoryService {
       return {
         numeral: s.numeral,
         roman: s.roman,
-        name: this.keyName(rootIndex) + s.quality,
+        name: this.noteInKey(rootIndex, keyIndex) + s.quality,
         rootIndex,
         quality: s.quality,
       };
