@@ -4,7 +4,8 @@ import { SongStore } from '../../core/services/song-store.service';
 import { TransposeService } from '../../core/services/transpose.service';
 import { ChartService } from '../../core/services/chart.service';
 import { KEY_NAMES } from '../../core/services/theory.service';
-import { Song } from '../../core/models/song.model';
+import { LyricLine, Song } from '../../core/models/song.model';
+import { chordRow } from '../../core/util/chord-text';
 
 type ChartMode = 'chords' | 'nashville';
 
@@ -96,7 +97,20 @@ type ChartMode = 'chords' | 'nashville';
                 </div>
               }
               @for (line of sec.lines; track $index) {
-                <div class="text-slate-600 dark:text-slate-300">{{ line.text }}</div>
+                @if (line.chordAnchors.length) {
+                  <!-- Chord row, column-aligned above its lyric. textContent bindings (not
+                       interpolation) so template indentation can't leak into whitespace-pre. -->
+                  <div
+                    class="whitespace-pre font-mono text-sm font-semibold text-brand-600 dark:text-brand-400"
+                    [textContent]="chordRowFor(line, song.key)"
+                  ></div>
+                  <div
+                    class="whitespace-pre font-mono text-sm text-slate-600 dark:text-slate-300"
+                    [textContent]="line.text"
+                  ></div>
+                } @else {
+                  <div class="text-slate-600 dark:text-slate-300">{{ line.text }}</div>
+                }
               }
             </div>
           }
@@ -136,6 +150,11 @@ export class ChartView {
     return this.mode() === 'nashville'
       ? this.transpose.chordToNashville(symbol, songKey)
       : this.transpose.transposeChord(symbol, songKey, this.toKey() ?? songKey);
+  }
+
+  /** The column-aligned chord row for a lyric line, in the current mode/key. */
+  chordRowFor(line: LyricLine, songKey: number): string {
+    return chordRow(line, (s) => this.render(s, songKey));
   }
 
   exportChordPro(song: Song): void {

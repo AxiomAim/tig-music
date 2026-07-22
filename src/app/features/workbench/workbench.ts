@@ -251,7 +251,8 @@ export class Workbench {
     this.store.updateMeta(songId, { status });
   }
 
-  /** Change key: re-spell every chord to the new key so the song stays musically the same. */
+  /** Change key: re-spell every chord — progression AND inline lyric anchors — to the new key
+   *  so the song stays musically the same. */
   changeKey(newKey: number): void {
     const song = this.current();
     if (!song) return;
@@ -261,6 +262,13 @@ export class Workbench {
       progression: sec.progression.map((ch) => ({
         ...ch,
         symbol: this.transpose.transposeChord(ch.symbol, from, newKey),
+      })),
+      lines: sec.lines.map((l) => ({
+        ...l,
+        chordAnchors: l.chordAnchors.map((a) => ({
+          ...a,
+          symbol: this.transpose.transposeChord(a.symbol, from, newKey),
+        })),
       })),
     }));
     this.store.updateMeta(song.id, { key: newKey, sections });
