@@ -18,10 +18,11 @@ import { SectionEditor } from '../../shared/components/section-editor/section-ed
 import { ChordLane } from '../../shared/components/chord-lane/chord-lane';
 import { TakesStrip } from '../../shared/components/takes-strip/takes-strip';
 import { HermesPanel } from '../../shared/components/hermes-panel/hermes-panel';
+import { CommandBar } from '../../shared/components/command-bar/command-bar';
 
 @Component({
   selector: 'app-workbench',
-  imports: [RouterLink, SectionEditor, ChordLane, TakesStrip, HermesPanel],
+  imports: [RouterLink, SectionEditor, ChordLane, TakesStrip, HermesPanel, CommandBar],
   template: `
     @let song = current();
     @if (!song) {
@@ -178,6 +179,9 @@ import { HermesPanel } from '../../shared/components/hermes-panel/hermes-panel';
           <app-hermes-panel [song]="song" />
         </div>
       </div>
+
+      <!-- ⌘K command bar — Hermes one gesture away (US-7.4) -->
+      <app-command-bar [song]="song" />
     }
   `,
 })
