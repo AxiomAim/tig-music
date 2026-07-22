@@ -2,6 +2,7 @@ import { Component, inject, input, linkedSignal, output, signal } from '@angular
 import { LyricLine, SECTION_TYPES, Section, SectionType } from '../../../core/models/song.model';
 import { RhymeService, RhymeResults } from '../../../core/services/rhyme.service';
 import { ScriptureService } from '../../../core/services/scripture.service';
+import { CommandBarService } from '../../../core/services/command-bar.service';
 import { Verse } from '../../../core/data/scripture-web';
 import { syllablesInLine } from '../../../core/util/syllables';
 
@@ -26,6 +27,14 @@ import { syllablesInLine } from '../../../core/util/syllables';
           (change)="setLabel($any($event.target).value)"
         />
         <div class="flex items-center gap-1 text-slate-400">
+          <button
+            type="button"
+            class="icon-btn hover:text-brand-500"
+            title="Ask Hermes for this section (⌘K)"
+            (click)="askHermes()"
+          >
+            ✨
+          </button>
           <button type="button" class="icon-btn" title="Move up" (click)="moveUp.emit()">↑</button>
           <button type="button" class="icon-btn" title="Move down" (click)="moveDown.emit()">
             ↓
@@ -179,6 +188,7 @@ export class SectionEditor {
 
   private readonly rhyme = inject(RhymeService);
   private readonly scripture = inject(ScriptureService);
+  private readonly commandBar = inject(CommandBarService);
 
   readonly types = SECTION_TYPES;
   readonly tool = signal<'rhyme' | 'scripture' | null>(null);
@@ -204,6 +214,11 @@ export class SectionEditor {
       off: counts[i] > 0 && modal > 0 && Math.abs(counts[i] - modal) > 2,
     }));
   };
+
+  /** Open the ⌘K command bar pre-scoped to this section (inline entry point, US-7.4). */
+  askHermes(): void {
+    this.commandBar.open({ sectionId: this.section().id });
+  }
 
   setType(type: SectionType): void {
     this.change.emit({ ...this.section(), type });
