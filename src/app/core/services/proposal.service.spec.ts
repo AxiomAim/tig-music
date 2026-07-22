@@ -34,13 +34,13 @@ function song(): Song {
 describe('ProposalService (propose-never-act: apply + provenance)', () => {
   let svc: ProposalService;
   let store: {
-    updateSection: ReturnType<typeof vi.fn>;
+    patchSection: ReturnType<typeof vi.fn>;
     updateMeta: ReturnType<typeof vi.fn>;
     logProvenance: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
-    store = { updateSection: vi.fn(), updateMeta: vi.fn(), logProvenance: vi.fn() };
+    store = { patchSection: vi.fn(), updateMeta: vi.fn(), logProvenance: vi.fn() };
     TestBed.configureTestingModule({ providers: [{ provide: SongStore, useValue: store }] });
     svc = TestBed.inject(ProposalService);
   });
@@ -58,10 +58,11 @@ describe('ProposalService (propose-never-act: apply + provenance)', () => {
     };
     svc.accept(song(), p);
 
-    expect(store.updateSection).toHaveBeenCalledTimes(1);
-    const updated = store.updateSection.mock.calls[0][1];
-    expect(updated.lines).toHaveLength(2);
-    expect(updated.lines[1].text).toBe(p.proposed); // the (possibly edited) proposed text lands
+    expect(store.patchSection).toHaveBeenCalledTimes(1);
+    expect(store.patchSection.mock.calls[0].slice(0, 2)).toEqual(['s1', 'v1']);
+    const patch = store.patchSection.mock.calls[0][2];
+    expect(patch.lines).toHaveLength(2);
+    expect(patch.lines[1].text).toBe(p.proposed); // the (possibly edited) proposed text lands
     expect(store.logProvenance).toHaveBeenCalledTimes(1);
     expect(store.logProvenance.mock.calls[0][1]).toMatchObject({
       kind: 'ai-suggested',
@@ -82,7 +83,7 @@ describe('ProposalService (propose-never-act: apply + provenance)', () => {
     };
     svc.accept(song(), p);
     expect(store.updateMeta).toHaveBeenCalledWith('s1', { title: 'Grace Enough' });
-    expect(store.updateSection).not.toHaveBeenCalled();
+    expect(store.patchSection).not.toHaveBeenCalled();
     expect(store.logProvenance).toHaveBeenCalledTimes(1);
   });
 
@@ -97,7 +98,7 @@ describe('ProposalService (propose-never-act: apply + provenance)', () => {
       sources: [],
     };
     svc.accept(song(), p);
-    expect(store.updateSection).not.toHaveBeenCalled();
+    expect(store.patchSection).not.toHaveBeenCalled();
     expect(store.updateMeta).not.toHaveBeenCalled();
     expect(store.logProvenance).toHaveBeenCalledTimes(1);
   });
@@ -114,8 +115,8 @@ describe('ProposalService (propose-never-act: apply + provenance)', () => {
       apply: { type: 'add-chord', sectionId: 'v1', symbol: 'Eb', nashville: 'b6' },
     };
     svc.accept(song(), p);
-    const updated = store.updateSection.mock.calls[0][1];
-    expect(updated.progression).toHaveLength(1);
-    expect(updated.progression[0]).toMatchObject({ symbol: 'Eb', nashville: 'b6', bar: 1 });
+    const patch = store.patchSection.mock.calls[0][2];
+    expect(patch.progression).toHaveLength(1);
+    expect(patch.progression[0]).toMatchObject({ symbol: 'Eb', nashville: 'b6', bar: 1 });
   });
 });

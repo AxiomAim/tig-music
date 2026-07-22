@@ -39,13 +39,11 @@ export class ProposalService {
     const sec = song.sections.find((s) => s.id === apply.sectionId);
     if (!sec) return;
     if (apply.type === 'append-line') {
-      this.store.updateSection(song.id, {
-        ...sec,
+      this.store.patchSection(song.id, sec.id, {
         lines: [...sec.lines, { text: p.proposed, chordAnchors: [] }],
       });
     } else if (apply.type === 'add-chord') {
-      this.store.updateSection(song.id, {
-        ...sec,
+      this.store.patchSection(song.id, sec.id, {
         progression: [
           ...sec.progression,
           {

@@ -95,7 +95,7 @@ export class ChordLane {
   readonly songKey = input.required<number>();
   readonly tempo = input<number>(80);
   readonly showNashville = input<boolean>(false);
-  readonly change = output<Section>();
+  readonly change = output<Partial<Section>>();
 
   private readonly theory = inject(TheoryService);
   private readonly transpose = inject(TransposeService);
@@ -125,12 +125,12 @@ export class ChordLane {
       beat: 1,
       durationBeats: 4,
     };
-    this.change.emit({ ...this.section(), progression: [...prog, event] });
+    this.change.emit({ progression: [...prog, event] });
   }
 
   removeAt(i: number): void {
     const prog = this.section().progression.filter((_, idx) => idx !== i);
-    this.change.emit({ ...this.section(), progression: prog });
+    this.change.emit({ progression: prog });
   }
 
   move(i: number, dir: -1 | 1): void {
@@ -138,7 +138,7 @@ export class ChordLane {
     const target = i + dir;
     if (target < 0 || target >= prog.length) return;
     [prog[i], prog[target]] = [prog[target], prog[i]];
-    this.change.emit({ ...this.section(), progression: prog });
+    this.change.emit({ progression: prog });
   }
 
   play(): void {
