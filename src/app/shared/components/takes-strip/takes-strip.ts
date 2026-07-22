@@ -35,6 +35,10 @@ import { KEY_NAMES } from '../../../core/services/theory.service';
         <p class="mt-3 text-xs text-slate-400">Recording needs a browser with microphone access.</p>
       }
 
+      @if (rec.lastError(); as err) {
+        <p class="mt-2 text-xs font-medium text-red-500" role="alert">{{ err }}</p>
+      }
+
       <ul class="mt-3 space-y-2">
         @for (t of takes(); track t.id) {
           <li class="flex items-center gap-2 text-sm">

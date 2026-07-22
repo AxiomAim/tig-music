@@ -51,7 +51,7 @@ import { CommandBar } from '../../shared/components/command-bar/command-bar';
               (change)="changeKey(+$any($event.target).value)"
             >
               @for (k of keyNames; track $index) {
-                <option [value]="$index">{{ k }}</option>
+                <option [value]="$index" [selected]="$index === song.key">{{ k }}</option>
               }
             </select>
           </label>
@@ -81,7 +81,7 @@ import { CommandBar } from '../../shared/components/command-bar/command-bar';
             (change)="setStatus(song.id, $any($event.target).value)"
           >
             @for (s of statuses; track s) {
-              <option [value]="s">{{ s }}</option>
+              <option [value]="s" [selected]="s === song.status">{{ s }}</option>
             }
           </select>
 

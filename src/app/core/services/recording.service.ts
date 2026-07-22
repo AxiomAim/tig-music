@@ -30,6 +30,8 @@ export class RecordingService {
   private readonly uid = computed(() => this.auth.user()?.uid ?? null);
 
   readonly recording = signal(false);
+  /** Last user-facing recording error (mic denied, upload blocked, …); null when all is well. */
+  readonly lastError = signal<string | null>(null);
   readonly supported =
     typeof window !== 'undefined' && typeof navigator !== 'undefined' && !!navigator.mediaDevices;
 
@@ -50,7 +52,13 @@ export class RecordingService {
   /** Begin recording from the mic. Resolves once the recorder is running. */
   async start(): Promise<void> {
     if (!this.supported || this.recording()) return;
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    this.lastError.set(null);
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      this.lastError.set('Microphone blocked — allow mic access for music.tigpowell.com, then try again.');
+      return;
+    }
     this.chunks = [];
     this.recorder = new MediaRecorder(this.stream, { mimeType: this.pickMimeType() });
     this.recorder.ondataavailable = (e) => {
@@ -88,17 +96,23 @@ export class RecordingService {
     const takeRef = doc(this.col(uid, songId));
     const ext = blob.type.includes('mp4') || blob.type.includes('mp4a') ? 'm4a' : 'webm';
     const storagePath = `users/${uid}/songs/${songId}/takes/${takeRef.id}.${ext}`;
-    await uploadBytes(ref(this.storage, storagePath), blob);
-    const take: Omit<Take, 'id'> = {
-      storagePath,
-      label: meta.label || 'Take',
-      durationSec: meta.durationSec,
-      tempo: meta.tempo,
-      key: meta.key,
-      note: meta.note,
-      createdAt: Date.now(),
-    };
-    await setDoc(takeRef, take);
+    try {
+      await uploadBytes(ref(this.storage, storagePath), blob);
+      const take: Omit<Take, 'id'> = {
+        storagePath,
+        label: meta.label || 'Take',
+        durationSec: meta.durationSec,
+        tempo: meta.tempo,
+        key: meta.key,
+        note: meta.note,
+        createdAt: Date.now(),
+      };
+      await setDoc(takeRef, take);
+      this.lastError.set(null);
+    } catch (e) {
+      this.lastError.set("Couldn't save the take — check your connection and try again.");
+      console.error('[tig-music] saveTake failed:', e);
+    }
   }
 
   /** A playable URL for a stored take. */
