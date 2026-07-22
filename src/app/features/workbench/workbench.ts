@@ -101,6 +101,7 @@ import { HermesPanel } from '../../shared/components/hermes-panel/hermes-panel';
               <app-section-editor
                 [section]="sec"
                 (change)="onSection(song.id, $event)"
+                (changeType)="store.changeSectionType(song.id, sec.id, $event)"
                 (remove)="store.removeSection(song.id, sec.id)"
                 (moveUp)="store.moveSection(song.id, sec.id, -1)"
                 (moveDown)="store.moveSection(song.id, sec.id, 1)"

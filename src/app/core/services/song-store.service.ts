@@ -22,6 +22,7 @@ import {
 import { type Observable, of, switchMap } from 'rxjs';
 import { AuthService } from './auth.service';
 import { ProvenanceEntry, Section, Song, VersionSnapshot } from '../models/song.model';
+import { autoLabel, withSectionType } from '../util/section-label';
 
 @Injectable({ providedIn: 'root' })
 export class SongStore {
@@ -89,12 +90,21 @@ export class SongStore {
   /** Append a new blank section of the given type. */
   addSection(songId: string, type: Section['type'] = 'verse'): void {
     this.mutate(songId, (song) => {
-      const label = this.autoLabel(song.sections, type);
+      const label = autoLabel(song.sections, type);
       return {
         ...song,
         sections: [...song.sections, this.blankSection(type, label, song.sections.length)],
       };
     });
+  }
+
+  /** Change a section's type, auto-renaming its label when it's still a default
+   *  (e.g. "Verse 1" → "Chorus"). A label the writer has hand-customized is kept. */
+  changeSectionType(songId: string, sectionId: string, type: Section['type']): void {
+    this.mutate(songId, (song) => ({
+      ...song,
+      sections: withSectionType(song.sections, sectionId, type),
+    }));
   }
 
   /** Replace one section (by id) with an edited copy. */
@@ -214,12 +224,6 @@ export class SongStore {
 
   private reindex(sections: Section[]): Section[] {
     return sections.map((s, i) => ({ ...s, order: i }));
-  }
-
-  private autoLabel(sections: Section[], type: Section['type']): string {
-    const cap = type.charAt(0).toUpperCase() + type.slice(1);
-    const n = sections.filter((s) => s.type === type).length + 1;
-    return type === 'verse' ? `Verse ${n}` : n > 1 ? `${cap} ${n}` : cap;
   }
 
   private blankSection(type: Section['type'], label: string, order: number): Section {
