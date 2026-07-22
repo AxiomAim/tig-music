@@ -1,6 +1,6 @@
 import { Component, inject, input, signal } from '@angular/core';
 import { HermesService } from '../../../core/services/hermes.service';
-import { SongStore } from '../../../core/services/song-store.service';
+import { ProposalService } from '../../../core/services/proposal.service';
 import { HermesSkill, Proposal } from '../../../core/models/hermes.model';
 import { Song } from '../../../core/models/song.model';
 
@@ -95,7 +95,7 @@ export class HermesPanel {
   readonly song = input.required<Song>();
 
   private readonly hermes = inject(HermesService);
-  private readonly store = inject(SongStore);
+  private readonly proposalSvc = inject(ProposalService);
 
   readonly skills: { key: HermesSkill; label: string }[] = [
     { key: 'ask', label: '✦ Ask Hermes' },
@@ -129,52 +129,14 @@ export class HermesPanel {
     );
   }
 
-  /** Apply a proposal to the song (the ONLY mutation path) and log provenance. */
+  /** Accept a proposal — routed through the shared ProposalService (the only mutation path). */
   accept(p: Proposal): void {
-    const song = this.song();
     const current = this.proposals().find((x) => x.id === p.id) ?? p;
-    if (current.apply) this.applyToSong(song, current);
-    this.store.logProvenance(song.id, {
-      target: current.target,
-      kind: 'ai-suggested',
-      acceptedAt: Date.now(),
-      hermesToolCallId: current.id,
-      summary: `${current.skill}: ${current.proposed}`,
-    });
+    this.proposalSvc.accept(this.song(), current);
     this.discard(current);
   }
 
   discard(p: Proposal): void {
     this.proposals.update((list) => list.filter((x) => x.id !== p.id));
-  }
-
-  private applyToSong(song: Song, p: Proposal): void {
-    const apply = p.apply!;
-    if (apply.type === 'set-title') {
-      this.store.updateMeta(song.id, { title: p.proposed });
-      return;
-    }
-    const sec = song.sections.find((s) => s.id === apply.sectionId);
-    if (!sec) return;
-    if (apply.type === 'append-line') {
-      this.store.updateSection(song.id, {
-        ...sec,
-        lines: [...sec.lines, { text: p.proposed, chordAnchors: [] }],
-      });
-    } else if (apply.type === 'add-chord') {
-      this.store.updateSection(song.id, {
-        ...sec,
-        progression: [
-          ...sec.progression,
-          {
-            symbol: apply.symbol,
-            nashville: apply.nashville,
-            bar: sec.progression.length + 1,
-            beat: 1,
-            durationBeats: 4,
-          },
-        ],
-      });
-    }
   }
 }
