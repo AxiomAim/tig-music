@@ -69,7 +69,8 @@ export class HermesService {
         skill: 'ask',
         kind: 'note',
         target: 'Hermes',
-        proposed: 'Hermes is unreachable right now — the grounded skills (rhymes, scripture, chords) still work offline.',
+        proposed:
+          'Hermes is unreachable right now — the grounded skills (rhymes, scripture, chords) still work offline.',
         rationale: 'The agent proxy returned nothing (not configured or the Mac mini is offline).',
         sources: [],
       }),
@@ -82,16 +83,22 @@ export class HermesService {
     if (!word) return [];
     const r = await this.rhyme.lookup(word);
     const picks = [...r.rhymes.slice(0, 4), ...r.near.slice(0, 2)];
-    return picks.map((w) =>
+    return picks.map((w, i) =>
       this.make({
         skill: 'rhyme',
         kind: 'line',
-        target: sec ? `${sec.label} — new line` : 'lyrics',
-        proposed: this.rhymeLineStub(w),
-        rationale: `"${w}" rhymes with "${word}" — a line ending to try.`,
+        target: sec ? `${sec.label} — line ending on "${w}"` : 'lyrics',
+        // The rhyming word IS the grounded suggestion (from Datamuse). Seed a new, editable line
+        // ending on it; the writer fills the front (or hands it to Hermes via ✦ Ask) and Accepts.
+        proposed: this.rhymeSeed(word, w, i < r.rhymes.length),
+        rationale: `"${w}" ${i < r.rhymes.length ? 'rhymes' : 'near-rhymes'} with "${word}" — a line ending to try.`,
         sources: [`rhyme:${word}→${w}`],
         apply: sec
-          ? { type: 'append-line', sectionId: sec.id, text: this.rhymeLineStub(w) }
+          ? {
+              type: 'append-line',
+              sectionId: sec.id,
+              text: this.rhymeSeed(word, w, i < r.rhymes.length),
+            }
           : undefined,
       }),
     );
@@ -204,8 +211,12 @@ export class HermesService {
     );
   }
 
-  private rhymeLineStub(word: string): string {
-    return `… ${word}`;
+  /** A seed for an editable new line ending on the rhyme word. Kept deterministic and honest:
+   *  we don't fake-compose a lyric — we hand the writer the rhyming word in line-ending position
+   *  to build on (or pass to Hermes via ✦ Ask). `_prev`/`_perfect` are here so the seed can grow
+   *  smarter later without changing the call sites. */
+  private rhymeSeed(_prev: string, word: string, _perfect: boolean): string {
+    return word;
   }
 
   private titleCandidates(line: string, tags: string[]): string[] {

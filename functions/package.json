@@ -2,7 +2,9 @@
   "name": "tig-music-functions",
   "description": "Tig Music Cloud Functions — the Hermes co-writer proxy (holds secrets; enforces propose-never-act).",
   "type": "module",
-  "engines": { "node": "20" },
+  "engines": {
+    "node": "22"
+  },
   "main": "lib/index.js",
   "scripts": {
     "build": "tsc",
@@ -10,8 +12,8 @@
     "deploy": "firebase deploy --only functions:tig-music"
   },
   "dependencies": {
-    "firebase-admin": "^12.7.0",
-    "firebase-functions": "^6.1.0"
+    "firebase-admin": "^14.2.0",
+    "firebase-functions": "^7.3.0"
   },
   "devDependencies": {
     "typescript": "~5.9.2"
