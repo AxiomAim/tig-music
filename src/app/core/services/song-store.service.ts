@@ -114,11 +114,13 @@ export class SongStore {
     }));
   }
 
-  /** Replace one section (by id) with an edited copy. */
-  updateSection(songId: string, section: Section): void {
+  /** Merge a partial update onto one section (by id), reading the latest stored copy at write
+   *  time so concurrent field edits — e.g. a debounced lyric autosave landing while the writer
+   *  changes the section type — merge instead of clobbering each other. */
+  patchSection(songId: string, sectionId: string, patch: Partial<Section>): void {
     this.mutate(songId, (song) => ({
       ...song,
-      sections: song.sections.map((s) => (s.id === section.id ? section : s)),
+      sections: song.sections.map((s) => (s.id === sectionId ? { ...s, ...patch } : s)),
     }));
   }
 

@@ -186,7 +186,7 @@ import { syllablesInLine } from '../../../core/util/syllables';
 export class SectionEditor {
   readonly section = input.required<Section>();
 
-  readonly change = output<Section>();
+  readonly change = output<Partial<Section>>();
   readonly changeType = output<SectionType>();
   readonly remove = output<void>();
   readonly moveUp = output<void>();
@@ -261,7 +261,7 @@ export class SectionEditor {
   }
 
   setLabel(label: string): void {
-    this.change.emit({ ...this.section(), label });
+    this.change.emit({ label });
   }
 
   commitLyrics(): void {
@@ -275,7 +275,7 @@ export class SectionEditor {
     const normalized = serializeLyricsBlock(lines);
     if (normalized === this.lastCommitted) return; // nothing new to save
     this.lastCommitted = normalized;
-    this.change.emit({ ...this.section(), lines });
+    this.change.emit({ lines });
   }
 
   toggle(tool: 'rhyme' | 'scripture'): void {

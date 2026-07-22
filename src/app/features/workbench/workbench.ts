@@ -121,7 +121,7 @@ import { CommandBar } from '../../shared/components/command-bar/command-bar';
             <div>
               <app-section-editor
                 [section]="sec"
-                (change)="onSection(song.id, $event)"
+                (change)="onSection(song.id, sec.id, $event)"
                 (changeType)="store.changeSectionType(song.id, sec.id, $event)"
                 (remove)="store.removeSection(song.id, sec.id)"
                 (moveUp)="store.moveSection(song.id, sec.id, -1)"
@@ -134,7 +134,7 @@ import { CommandBar } from '../../shared/components/command-bar/command-bar';
                   [songKey]="song.key"
                   [tempo]="song.tempo"
                   [showNashville]="ctx.showNashville()"
-                  (change)="onSection(song.id, $event)"
+                  (change)="onSection(song.id, sec.id, $event)"
                 />
               </div>
             </div>
@@ -236,8 +236,8 @@ export class Workbench {
     this.versionLabel.set('');
   }
 
-  onSection(songId: string, section: Section): void {
-    this.store.updateSection(songId, section);
+  onSection(songId: string, sectionId: string, patch: Partial<Section>): void {
+    this.store.patchSection(songId, sectionId, patch);
   }
 
   setTitle(songId: string, title: string): void {
