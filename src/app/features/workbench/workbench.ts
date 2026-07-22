@@ -85,6 +85,26 @@ import { CommandBar } from '../../shared/components/command-bar/command-bar';
             }
           </select>
 
+          <!-- Save state — every edit autosaves; this is the receipt. -->
+          <span class="min-w-16 text-xs" aria-live="polite">
+            @switch (store.saveState()) {
+              @case ('saving') {
+                <span class="text-slate-400">Saving…</span>
+              }
+              @case ('saved') {
+                <span class="text-emerald-600 dark:text-emerald-400">Saved ✓</span>
+              }
+              @case ('error') {
+                <span
+                  class="font-medium text-red-500"
+                  title="Check your connection — your latest edit did not reach the server. It will retry on your next change."
+                  >⚠ Not saved</span
+                >
+              }
+              @default {}
+            }
+          </span>
+
           <a [routerLink]="['/songs', song.id, 'chart']" class="btn-ghost py-1.5 text-sm"
             >Chart →</a
           >

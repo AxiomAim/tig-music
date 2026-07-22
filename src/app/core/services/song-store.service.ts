@@ -7,7 +7,7 @@
 // collectionData). See docs/04-development-plan.md US-3.3.
 // ============================================================
 
-import { Injectable, computed, inject } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   Firestore,
@@ -51,6 +51,13 @@ export class SongStore {
   get(id: string): Song | undefined {
     return this.songs().find((s) => s.id === id);
   }
+
+  // --- save-state (drives the workbench "Saving… / Saved" indicator) --------
+  /** 'idle' until the first write; then reflects the most recent persist round-trip. */
+  readonly saveState = signal<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  /** Epoch ms of the last server-acknowledged save (for "Saved · just now"). */
+  readonly lastSavedAt = signal<number | null>(null);
+  private pendingWrites = 0;
 
   /** Create a song owned by the signed-in writer. Throws if signed out. Returns the new song. */
   async create(title = 'Untitled song'): Promise<Song> {
@@ -189,10 +196,23 @@ export class SongStore {
   private persist(song: Song): void {
     const uid = this.uid();
     if (!uid) return;
-    void setDoc(
+    this.pendingWrites++;
+    this.saveState.set('saving');
+    setDoc(
       doc(this.db, 'users', uid, 'songs', song.id),
       this.toDoc({ ...song, updatedAt: Date.now() }),
-    );
+    )
+      .then(() => {
+        if (--this.pendingWrites === 0) {
+          this.saveState.set('saved');
+          this.lastSavedAt.set(Date.now());
+        }
+      })
+      .catch((e: unknown) => {
+        this.pendingWrites = Math.max(0, this.pendingWrites - 1);
+        this.saveState.set('error');
+        console.error('[tig-music] save failed:', e);
+      });
   }
 
   private mutate(songId: string, fn: (song: Song) => Song): void {

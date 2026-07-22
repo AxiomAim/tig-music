@@ -1,4 +1,4 @@
-import { Component, inject, input, linkedSignal, output, signal } from '@angular/core';
+import { Component, DestroyRef, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { LyricLine, SECTION_TYPES, Section, SectionType } from '../../../core/models/song.model';
 import { RhymeService, RhymeResults } from '../../../core/services/rhyme.service';
 import { ScriptureService } from '../../../core/services/scripture.service';
@@ -53,13 +53,13 @@ import { syllablesInLine } from '../../../core/util/syllables';
         </div>
       </div>
 
-      <!-- Lyrics -->
+      <!-- Lyrics (autosaves ~1.5s after you pause; also commits on blur) -->
       <textarea
         class="input mt-3 w-full font-sans leading-7"
         rows="4"
         placeholder="Write the {{ section().type }}…"
         [value]="lyricText()"
-        (input)="lyricText.set($any($event.target).value)"
+        (input)="onLyricInput($any($event.target).value)"
         (change)="commitLyrics()"
       ></textarea>
 
@@ -195,12 +195,34 @@ export class SectionEditor {
   readonly rhymes = signal<RhymeResults | null>(null);
   readonly verses = signal<Verse[]>([]);
 
-  // Editable lyric text, reset whenever the bound section changes.
-  readonly lyricText = linkedSignal(() =>
-    this.section()
-      .lines.map((l) => l.text)
-      .join('\n'),
-  );
+  // Editable lyric text. Resets when the section changes EXTERNALLY (switching songs, a Hermes
+  // accept, a version restore) — but NOT when the incoming update is just our own committed text
+  // echoing back from Firestore, so in-flight typing is never clobbered by the autosave round-trip.
+  private lastCommitted: string | null = null;
+  readonly lyricText = linkedSignal<Section, string>({
+    source: this.section,
+    computation: (section, previous) => {
+      const stored = section.lines.map((l) => l.text).join('\n');
+      if (previous !== undefined && stored === this.lastCommitted) return previous.value;
+      this.lastCommitted = stored;
+      return stored;
+    },
+  });
+
+  // Debounced autosave (US-1.2): commit ~1.5s after the writer pauses; blur/destroy flush early.
+  private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => {
+      if (this.autosaveTimer) this.commitLyrics(); // flush pending edits when leaving the page
+    });
+  }
+
+  onLyricInput(text: string): void {
+    this.lyricText.set(text);
+    if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
+    this.autosaveTimer = setTimeout(() => this.commitLyrics(), 1500);
+  }
 
   /** Per-line text + syllable count, flagging lines that break the modal meter. */
   readonly lines = () => {
@@ -229,9 +251,14 @@ export class SectionEditor {
   }
 
   commitLyrics(): void {
-    const lines: LyricLine[] = this.lyricText()
-      .split('\n')
-      .map((text) => ({ text, chordAnchors: [] }));
+    if (this.autosaveTimer) {
+      clearTimeout(this.autosaveTimer);
+      this.autosaveTimer = null;
+    }
+    const text = this.lyricText();
+    if (text === this.lastCommitted) return; // nothing new to save
+    this.lastCommitted = text;
+    const lines: LyricLine[] = text.split('\n').map((t) => ({ text: t, chordAnchors: [] }));
     this.change.emit({ ...this.section(), lines });
   }
 
