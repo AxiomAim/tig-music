@@ -28,7 +28,11 @@ export class HermesRemoteService {
   async ask(song: Song, sectionId: string | undefined, input: string): Promise<Proposal[]> {
     if (!this.fns) return [];
     const section = sectionId ? song.sections.find((s) => s.id === sectionId) : undefined;
-    const call = httpsCallable<unknown, ProposeResponse>(this.fns, 'hermesPropose');
+    // The Hermes agent is slow (measured 3–5 min/call on the local backend), so override the
+    // callable's ~70s default to match the function's 300s ceiling. See functions/src/index.ts.
+    const call = httpsCallable<unknown, ProposeResponse>(this.fns, 'hermesPropose', {
+      timeout: 300_000,
+    });
     try {
       const res = await call({
         skill: 'ask',
