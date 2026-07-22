@@ -122,6 +122,7 @@ import { CommandBar } from '../../shared/components/command-bar/command-bar';
               <app-section-editor
                 [section]="sec"
                 (change)="onSection(song.id, $event)"
+                (changeType)="store.changeSectionType(song.id, sec.id, $event)"
                 (remove)="store.removeSection(song.id, sec.id)"
                 (moveUp)="store.moveSection(song.id, sec.id, -1)"
                 (moveDown)="store.moveSection(song.id, sec.id, 1)"

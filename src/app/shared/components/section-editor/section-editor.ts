@@ -19,7 +19,7 @@ import { syllablesInLine } from '../../../core/util/syllables';
           (change)="setType($any($event.target).value)"
         >
           @for (t of types; track t) {
-            <option [value]="t">{{ t }}</option>
+            <option [value]="t" [selected]="t === section().type">{{ t }}</option>
           }
         </select>
         <input
@@ -187,6 +187,7 @@ export class SectionEditor {
   readonly section = input.required<Section>();
 
   readonly change = output<Section>();
+  readonly changeType = output<SectionType>();
   readonly remove = output<void>();
   readonly moveUp = output<void>();
   readonly moveDown = output<void>();
@@ -254,7 +255,9 @@ export class SectionEditor {
   }
 
   setType(type: SectionType): void {
-    this.change.emit({ ...this.section(), type });
+    // Emit the type change up to the store, which keeps the label in sync
+    // (auto-renaming it when it's still a default, e.g. "Verse 1" → "Chorus").
+    this.changeType.emit(type);
   }
 
   setLabel(label: string): void {
