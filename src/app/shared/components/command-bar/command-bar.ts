@@ -1,14 +1,17 @@
 // ============================================================
 // Tig Music — the ⌘K command bar (US-7.4). Help one gesture away.
 //
-// A song-scoped launcher for Hermes: press ⌘K (Ctrl+K) anywhere in the workbench, type a request
-// (or pick a skill), and get the same editable, grounded proposal cards the Hermes panel shows —
-// Accept routes through the shared ProposalService, so propose-never-act + provenance are intact.
+// A song-scoped launcher for Hermes: press ⌘K (Ctrl+K) anywhere in the workbench, or click a
+// section's inline ✨, to open it pre-scoped — type a request (Enter) or pick a skill — and get
+// the same editable, grounded proposal cards the Hermes panel shows. Accept routes through the
+// shared ProposalService, so propose-never-act + provenance are intact. Open state + target
+// section live in CommandBarService so any surface can launch it.
 // ============================================================
 
 import { Component, HostListener, inject, input, signal } from '@angular/core';
 import { HermesService } from '../../../core/services/hermes.service';
 import { ProposalService } from '../../../core/services/proposal.service';
+import { CommandBarService } from '../../../core/services/command-bar.service';
 import { HermesSkill, Proposal } from '../../../core/models/hermes.model';
 import { Song } from '../../../core/models/song.model';
 
@@ -26,11 +29,11 @@ import { Song } from '../../../core/models/song.model';
       <kbd class="rounded border border-slate-300 px-1 text-[10px] dark:border-slate-600">⌘K</kbd>
     </button>
 
-    @if (open()) {
+    @if (bar.isOpen()) {
       <!-- Backdrop -->
       <div
         class="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pt-24 backdrop-blur-sm"
-        (click)="close()"
+        (click)="bar.close()"
       >
         <!-- Palette -->
         <div
@@ -43,15 +46,15 @@ import { Song } from '../../../core/models/song.model';
               autofocus
               class="w-full bg-transparent py-3 text-sm outline-none placeholder:text-slate-400"
               placeholder="Ask Hermes for a line, image, or idea…  (Enter to ask)"
-              [value]="query()"
-              (input)="query.set($any($event.target).value)"
+              [value]="bar.query()"
+              (input)="bar.query.set($any($event.target).value)"
               (keydown.enter)="ask()"
             />
             @if (song().sections.length > 1) {
               <select
                 class="input shrink-0 py-1 text-xs"
-                [value]="sectionId()"
-                (change)="sectionId.set($any($event.target).value)"
+                [value]="bar.sectionId()"
+                (change)="bar.sectionId.set($any($event.target).value)"
                 aria-label="Target section"
               >
                 @for (s of song().sections; track s.id) {
@@ -133,6 +136,7 @@ import { Song } from '../../../core/models/song.model';
 export class CommandBar {
   readonly song = input.required<Song>();
 
+  readonly bar = inject(CommandBarService);
   private readonly hermes = inject(HermesService);
   private readonly proposalSvc = inject(ProposalService);
 
@@ -144,9 +148,6 @@ export class CommandBar {
     { key: 'structure', label: 'Structure' },
   ];
 
-  readonly open = signal(false);
-  readonly query = signal('');
-  readonly sectionId = signal('');
   readonly loading = signal(false);
   readonly proposals = signal<Proposal[]>([]);
 
@@ -154,19 +155,16 @@ export class CommandBar {
   onKeydown(e: KeyboardEvent): void {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      this.open() ? this.close() : this.openBar();
-    } else if (e.key === 'Escape' && this.open()) {
-      this.close();
+      this.bar.isOpen() ? this.bar.close() : this.openBar();
+    } else if (e.key === 'Escape' && this.bar.isOpen()) {
+      this.bar.close();
     }
   }
 
+  /** Open from ⌘K or the floating button — default the target to the first section. */
   openBar(): void {
-    this.sectionId.set(this.sectionId() || this.song().sections[0]?.id || '');
-    this.open.set(true);
-  }
-
-  close(): void {
-    this.open.set(false);
+    if (!this.bar.sectionId()) this.bar.sectionId.set(this.song().sections[0]?.id ?? '');
+    this.bar.open();
   }
 
   ask(): void {
@@ -175,10 +173,10 @@ export class CommandBar {
 
   async run(skill: HermesSkill): Promise<void> {
     this.loading.set(true);
-    const sectionId = this.sectionId() || this.song().sections[0]?.id;
+    const sectionId = this.bar.sectionId() || this.song().sections[0]?.id;
     try {
       this.proposals.set(
-        await this.hermes.propose(this.song(), { skill, sectionId, input: this.query() }),
+        await this.hermes.propose(this.song(), { skill, sectionId, input: this.bar.query() }),
       );
     } finally {
       this.loading.set(false);
