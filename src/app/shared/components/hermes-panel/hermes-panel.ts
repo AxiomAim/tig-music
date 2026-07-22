@@ -23,7 +23,7 @@ import { Song } from '../../../core/models/song.model';
         (change)="sectionId.set($any($event.target).value)"
       >
         @for (s of song().sections; track s.id) {
-          <option [value]="s.id">{{ s.label }}</option>
+          <option [value]="s.id" [selected]="s.id === sectionId()">{{ s.label }}</option>
         }
       </select>
       <div class="mt-2 flex flex-wrap gap-1.5">

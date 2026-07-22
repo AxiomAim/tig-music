@@ -55,7 +55,7 @@ type ChartMode = 'chords' | 'nashville';
                   (change)="toKey.set(+$any($event.target).value)"
                 >
                   @for (k of keyNames; track $index) {
-                    <option [value]="$index">{{ k }}</option>
+                    <option [value]="$index" [selected]="$index === (toKey() ?? song.key)">{{ k }}</option>
                   }
                 </select>
               </label>

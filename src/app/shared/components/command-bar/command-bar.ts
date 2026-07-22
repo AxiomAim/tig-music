@@ -58,7 +58,7 @@ import { Song } from '../../../core/models/song.model';
                 aria-label="Target section"
               >
                 @for (s of song().sections; track s.id) {
-                  <option [value]="s.id">{{ s.label }}</option>
+                  <option [value]="s.id" [selected]="s.id === bar.sectionId()">{{ s.label }}</option>
                 }
               </select>
             }
