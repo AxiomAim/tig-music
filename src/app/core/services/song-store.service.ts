@@ -7,7 +7,7 @@
 // collectionData). See docs/04-development-plan.md US-3.3.
 // ============================================================
 
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   Firestore,
@@ -23,6 +23,7 @@ import { type Observable, of, switchMap } from 'rxjs';
 import { AuthService } from './auth.service';
 import { ProvenanceEntry, Section, Song, VersionSnapshot } from '../models/song.model';
 import { autoLabel, withSectionType } from '../util/section-label';
+import { reconcileDrafts } from '../util/draft-overlay';
 
 @Injectable({ providedIn: 'root' })
 export class SongStore {
@@ -49,8 +50,25 @@ export class SongStore {
     { initialValue: [] as Song[] },
   );
 
+  /**
+   * Locally-authoritative copies of songs the writer is editing, updated synchronously on every
+   * write — BEFORE Firestore echoes it back. A read prefers the draft so the next read-modify-write
+   * builds on the latest local state and never clobbers an un-echoed change (a lyric autosave
+   * landing on the heels of a section-type change). Cleared per song once the server catches up.
+   */
+  private readonly drafts = signal<Record<string, Song>>({});
+
+  constructor() {
+    // Once the server confirms an update at least as new as a draft, drop the draft so the server
+    // is the source of truth again (version restores, edits from another device flow through).
+    effect(() => {
+      const server = this.songs();
+      this.drafts.update((drafts) => reconcileDrafts(server, drafts));
+    });
+  }
+
   get(id: string): Song | undefined {
-    return this.songs().find((s) => s.id === id);
+    return this.drafts()[id] ?? this.songs().find((s) => s.id === id);
   }
 
   // --- save-state (drives the workbench "Saving… / Saved" indicator) --------
@@ -208,16 +226,17 @@ export class SongStore {
   private persist(song: Song): void {
     const uid = this.uid();
     if (!uid) return;
+    const stamped: Song = { ...song, updatedAt: Date.now() };
+    // Record the local truth synchronously so the very next read-modify-write builds on it,
+    // even before Firestore echoes this write back.
+    this.drafts.update((d) => ({ ...d, [stamped.id]: stamped }));
     this.pendingWrites++;
     this.saveState.set('saving');
-    setDoc(
-      doc(this.db, 'users', uid, 'songs', song.id),
-      this.toDoc({ ...song, updatedAt: Date.now() }),
-    )
+    setDoc(doc(this.db, 'users', uid, 'songs', stamped.id), this.toDoc(stamped))
       .then(() => {
         if (--this.pendingWrites === 0) {
           this.saveState.set('saved');
-          this.lastSavedAt.set(Date.now());
+          this.lastSavedAt.set(stamped.updatedAt);
         }
       })
       .catch((e: unknown) => {
