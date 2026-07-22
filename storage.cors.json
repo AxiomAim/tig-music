@@ -1,0 +1,32 @@
+[
+  {
+    "origin": [
+      "http://localhost:4200",
+      "http://localhost:4201",
+      "http://localhost:4202",
+      "http://localhost:4203",
+      "https://worship.tigpowell.com",
+      "https://tig-worship.web.app",
+      "https://tig-worship.firebaseapp.com",
+      "https://music.tigpowell.com",
+      "https://tig-music.web.app",
+      "https://tig-music.firebaseapp.com"
+    ],
+    "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+    "responseHeader": [
+      "Content-Type",
+      "Content-Length",
+      "Content-Range",
+      "Range",
+      "Accept-Ranges",
+      "X-Goog-Upload-URL",
+      "X-Goog-Upload-Status",
+      "X-Goog-Upload-Command",
+      "X-Goog-Upload-Protocol",
+      "X-Goog-Upload-Offset",
+      "X-Goog-Upload-Header-Content-Length",
+      "X-Goog-Upload-Header-Content-Type"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

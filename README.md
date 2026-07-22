@@ -70,6 +70,22 @@ project — connect `music.tigpowell.com` to that site and enable Google auth + 
 domains. A `/music` describe-and-link page on [tig-powell](../tig-powell) links to it, mirroring
 `/guitar` and `/banjo`.
 
+### Shared-bucket infra (rules + CORS)
+
+The suite shares **one** Cloud Storage bucket (`tig-powell.firebasestorage.app`), so its
+security ruleset ([storage.rules](storage.rules), deployed via `firebase deploy --only storage`)
+and its **CORS config** ([storage.cors.json](storage.cors.json)) are shared with Tig Worship —
+edits from either repo overwrite the other's, so keep both repos' copies identical and never
+drop another app's origins/paths. Reapply CORS after changing it:
+
+```bash
+gcloud storage buckets update gs://tig-powell.firebasestorage.app \
+  --cors-file=storage.cors.json
+```
+
+Demo-take recording needs both: the `users/{uid}/songs/**` block in `storage.rules` *and* the
+music origins + `POST`/`PUT` methods in the CORS config (browser uploads preflight against it).
+
 ## Suite integration
 
 Tig Music writes the shared `users/{uid}` tree with `appId: 'music'` (progress, sessions,
