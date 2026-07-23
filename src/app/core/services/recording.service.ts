@@ -110,7 +110,10 @@ export class RecordingService {
       await setDoc(takeRef, take);
       this.lastError.set(null);
     } catch (e) {
-      this.lastError.set("Couldn't save the take — check your connection and try again.");
+      // Surface the Firebase error code — "storage/unauthorized" vs "invalid-argument" point
+      // at completely different fixes, and a bare "check your connection" hides both.
+      const code = (e as { code?: string }).code ?? (e instanceof Error ? e.message : 'unknown');
+      this.lastError.set(`Couldn't save the take (${code}) — try again.`);
       console.error('[tig-music] saveTake failed:', e);
     }
   }
